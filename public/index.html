@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Pollen App Übersicht & Map</title>
+  <title>Thomas' Pollen Übersicht</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
     body { font-family: Arial, sans-serif; margin: 10px; }
@@ -107,8 +107,13 @@
 
       const list = document.getElementById("pollenList");
       list.innerHTML = "";
+
+      // Nur **letzter Wert pro Pollenart**
       measurements.forEach(m => {
-        const lastVal = m.data[m.data.length - 1]?.value || 0;
+        if(!m.data || m.data.length === 0) return;
+        const lastEntry = m.data[m.data.length - 1];
+        const lastVal = lastEntry.value || 0;
+
         const symbol = getColorSymbol(lastVal);
         const li = document.createElement("li");
         li.textContent = `${symbol} ${pollenNames[m.polle] || m.polle} (${m.polle}): ${lastVal.toFixed(1)}`;
@@ -123,7 +128,8 @@
 
         let maxVal = 0;
         measurements.forEach(m => {
-          const lastVal = m.data[m.data.length - 1]?.value || 0;
+          if(!m.data || m.data.length === 0) return;
+          const lastVal = m.data[m.data.length - 1].value || 0;
           if(lastVal > maxVal) maxVal = lastVal;
         });
 
