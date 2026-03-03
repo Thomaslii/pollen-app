@@ -1,104 +1,93 @@
 <!DOCTYPE html>
-<html>
+<html lang="de">
 <head>
-  <title>Pollen App Übersicht & Map</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <meta charset="UTF-8">
+  <title>Pollen App Übersicht</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 10px; }
-    h1 { margin-bottom: 10px; }
-    #legend { margin-bottom: 10px; }
-    #map { height: 500px; width: 100%; margin-top: 20px; }
-    select { margin-bottom: 10px; padding: 5px; font-size: 16px; }
-    ul { list-style: none; padding: 0; }
-    li { margin: 2px 0; font-size: 14px; }
-    .legend-item { display: inline-block; margin-right: 10px; font-size: 14px; }
+    body { font-family: Arial, sans-serif; margin: 20px; background: #f9f9f9; }
+    h1 { text-align: center; }
+    #locationList { margin-bottom: 20px; list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 10px; }
+    #locationList button { padding: 10px 15px; border: none; background: #4CAF50; color: white; cursor: pointer; border-radius: 5px; }
+    #locationList button:hover { background: #45a049; }
+
+    #legend { margin-bottom: 20px; }
+    .legend-item { display: inline-block; margin-right: 20px; font-weight: bold; }
+    .green { color: #2ecc71; }
+    .yellow { color: #f1c40f; }
+    .orange { color: #e67e22; }
+    .red { color: #e74c3c; }
+
+    #pollenList { list-style: none; padding: 0; }
+    #pollenList li { padding: 5px 10px; margin-bottom: 3px; border-radius: 4px; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
   </style>
 </head>
 <body>
-  <h1>🌿 Pollen Ampel Übersicht & Map</h1>
+  <h1>🌿 Pollenübersicht</h1>
+
+  <!-- Standort-Auswahl -->
+  <ul id="locationList"></ul>
 
   <!-- Legende -->
   <div id="legend">
-    <span class="legend-item">🟢 0–10 Sehr niedrig</span>
-    <span class="legend-item">🟡 11–50 Niedrig</span>
-    <span class="legend-item">🟠 51–200 Mittel</span>
-    <span class="legend-item">🔴 201–500 Hoch</span>
-    <span class="legend-item">🛑 >500 Sehr hoch</span>
+    <span class="legend-item green">🟢 0 – niedrig</span>
+    <span class="legend-item yellow">🟡 1–50 – mäßig</span>
+    <span class="legend-item orange">🟠 51–200 – hoch</span>
+    <span class="legend-item red">🔴 >200 – sehr hoch</span>
   </div>
 
-  <!-- Standortauswahl -->
-  <select id="locationSelect" onchange="highlightLocation(this.value)"></select>
-
-  <!-- Ampelliste -->
+  <!-- Pollendaten -->
   <ul id="pollenList"></ul>
 
-  <!-- Karte -->
-  <div id="map"></div>
-
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
-    let map = L.map('map').setView([48.5, 11.5], 7);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
-
-    let locations = [];
-    let markers = [];
-
     const pollenNames = {
-      "Abies": "Tanne","Acer": "Ahorn","Aesculus": "Rosskastanie",
-      "Alnus": "Erle","Ambrosia": "Ambrosie","Artemisia": "Beifuß",
-      "Asteraceae": "Korbblütler","Betula": "Birke","Carpinus": "Hainbuche",
-      "Castanea": "Kastanie","Chenopodium": "Gänsefußgewächse","Corylus": "Hasel",
-      "Cruciferae": "Kreuzblütler","Cyperaceae": "Sauergrasgewächse","Erica": "Heidekraut",
-      "Fagus": "Buche","Fraxinus": "Esche","Fungus": "Pilze","Galium": "Labkraut",
-      "Humulus": "Hopfen","Impatiens": "Springkraut","Juglans": "Walnuss",
-      "Larix": "Lärche","Picea": "Fichte","Pinaceae": "Kieferngewächse",
-      "Pinus": "Kiefer","Plantago": "Wegerich","Platanus": "Platane",
-      "Poaceae": "Süßgräser","Populus": "Pappel","Quercus": "Eiche",
-      "Quercus ilex": "Steineiche","Rumex": "Ampfer","Salix": "Weide",
-      "Sambucus": "Holunder","Secale": "Roggen","Taxus": "Eibe",
-      "Tilia": "Linde","Ulmus": "Ulme","Urtica": "Brennnessel",
-      "Varia": "Verschiedenes"
+      Abies: "Tanne",
+      Acer: "Ahorn",
+      Aesculus: "Rosskastanie",
+      Alnus: "Erle",
+      Ambrosia: "Ambrosie",
+      Artemisia: "Beifuß",
+      Asteraceae: "Korbblütler",
+      Betula: "Birke",
+      Carpinus: "Hainbuche",
+      Castanea: "Kastanie",
+      Chenopodium: "Gänsefußgewächse",
+      Corylus: "Hasel",
+      Cruciferae: "Kreuzblütler",
+      Cyperaceae: "Sauergrasgewächse",
+      Erica: "Heidekraut",
+      Fagus: "Buche",
+      Fraxinus: "Esche",
+      Fungus: "Pilze",
+      Galium: "Labkraut",
+      Humulus: "Hopfen",
+      Impatiens: "Springkraut",
+      Juglans: "Walnuss",
+      Larix: "Lärche",
+      Picea: "Fichte",
+      Pinaceae: "Kieferngewächse",
+      Pinus: "Kiefer",
+      Plantago: "Wegerich",
+      Platanus: "Platane",
+      Poaceae: "Süßgräser",
+      Populus: "Pappel",
+      Quercus: "Eiche",
+      "Quercus ilex": "Steineiche",
+      Rumex: "Ampfer",
+      Salix: "Weide",
+      Sambucus: "Holunder",
+      Secale: "Roggen",
+      Taxus: "Eibe",
+      Tilia: "Linde",
+      Ulmus: "Ulme",
+      Urtica: "Brennnessel",
+      Varia: "Verschiedenes"
     };
 
     function getColorSymbol(value) {
-      if(value <= 10) return '🟢';
-      if(value <= 50) return '🟡';
-      if(value <= 200) return '🟠';
-      if(value <= 500) return '🔴';
-      return '🛑';
-    }
-
-    function getMarkerColor(value) {
-      if(value <= 10) return 'green';
-      if(value <= 50) return 'yellow';
-      if(value <= 200) return 'orange';
-      if(value <= 500) return 'red';
-      return 'darkred';
-    }
-
-    async function initApp() {
-      await loadLocations();
-      populateSelect();
-      await loadMeasurements(locations[0].id); 
-      await loadMarkers();
-    }
-
-    async function loadLocations() {
-      const res = await fetch("/api/locations");
-      locations = await res.json();
-    }
-
-    function populateSelect() {
-      const select = document.getElementById("locationSelect");
-      select.innerHTML = "";
-      locations.forEach(l => {
-        const opt = document.createElement("option");
-        opt.value = l.id;
-        opt.textContent = l.name;
-        select.appendChild(opt);
-      });
+      if (value === 0) return "🟢";
+      if (value <= 50) return "🟡";
+      if (value <= 200) return "🟠";
+      return "🔴";
     }
 
     async function loadMeasurements(locationId) {
@@ -108,58 +97,43 @@
       const list = document.getElementById("pollenList");
       list.innerHTML = "";
 
-      // Nur letzter Wert pro Pollenart
-      const lastValues = measurements
-        .filter(m => m.data && m.data.length > 0)
-        .map(m => ({
-          polle: m.polle,
-          value: m.data[m.data.length - 1].value || 0
-        }));
+      // Gruppiere nach Pollenart
+      const pollenMap = {};
+      measurements.forEach(m => {
+        if (!m.data || m.data.length === 0) return;
+        if (!pollenMap[m.polle]) pollenMap[m.polle] = [];
+        pollenMap[m.polle].push(...m.data);
+      });
 
-      // Nach Wert absteigend sortieren
-      lastValues.sort((a, b) => b.value - a.value);
+      // Für jede Pollenart sortieren nach Wert absteigend
+      Object.entries(pollenMap).forEach(([polle, dataArray]) => {
+        const sorted = dataArray.sort((a, b) => b.value - a.value);
+        sorted.forEach(d => {
+          const symbol = getColorSymbol(d.value);
+          const dateStr = new Date(d.timestamp).toLocaleString();
+          const li = document.createElement("li");
+          li.textContent = `${symbol} ${pollenNames[polle] || polle}: ${d.value.toFixed(1)} – ${dateStr}`;
+          list.appendChild(li);
+        });
+      });
+    }
 
-      lastValues.forEach(m => {
-        const symbol = getColorSymbol(m.value);
+    async function loadLocations() {
+      const res = await fetch("/api/locations");
+      const locations = await res.json();
+      const list = document.getElementById("locationList");
+      list.innerHTML = "";
+      locations.forEach(l => {
         const li = document.createElement("li");
-        li.textContent = `${symbol} ${pollenNames[m.polle] || m.polle} (${m.polle}): ${m.value.toFixed(1)}`;
+        const btn = document.createElement("button");
+        btn.textContent = `${l.name} (${l.id})`;
+        btn.onclick = () => loadMeasurements(l.id);
+        li.appendChild(btn);
         list.appendChild(li);
       });
     }
 
-    async function loadMarkers() {
-      for(const loc of locations){
-        const res = await fetch(`/api/measurements?locations=${loc.id}`);
-        const measurements = await res.json();
-
-        let maxVal = 0;
-        measurements.forEach(m => {
-          if(!m.data || m.data.length === 0) return;
-          const lastVal = m.data[m.data.length - 1].value || 0;
-          if(lastVal > maxVal) maxVal = lastVal;
-        });
-
-        const marker = L.circleMarker([loc.lat, loc.lon], {
-          radius: 8,
-          color: getMarkerColor(maxVal),
-          fillColor: getMarkerColor(maxVal),
-          fillOpacity: 0.8
-        }).addTo(map).bindPopup(`<b>${loc.name}</b><br>Max Wert: ${maxVal.toFixed(1)}`);
-
-        markers.push({ id: loc.id, marker });
-      }
-    }
-
-    function highlightLocation(locationId){
-      const markerObj = markers.find(m => m.id === locationId);
-      if(markerObj){
-        markerObj.marker.openPopup();
-        map.setView(markerObj.marker.getLatLng(), 12);
-        loadMeasurements(locationId); 
-      }
-    }
-
-    initApp();
+    loadLocations();
   </script>
 </body>
 </html>
