@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Thomas' Pollen Übersicht</title>
+  <title>Pollen App Übersicht & Map</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
     body { font-family: Arial, sans-serif; margin: 10px; }
@@ -37,7 +37,7 @@
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
-    let map = L.map('map').setView([48.5, 11.5], 7); // mittig auf Bayern
+    let map = L.map('map').setView([48.5, 11.5], 7);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
@@ -81,7 +81,7 @@
     async function initApp() {
       await loadLocations();
       populateSelect();
-      await loadMeasurements(locations[0].id); // initialer Standort
+      await loadMeasurements(locations[0].id); 
       await loadMarkers();
     }
 
@@ -108,15 +108,21 @@
       const list = document.getElementById("pollenList");
       list.innerHTML = "";
 
-      // Nur **letzter Wert pro Pollenart**
-      measurements.forEach(m => {
-        if(!m.data || m.data.length === 0) return;
-        const lastEntry = m.data[m.data.length - 1];
-        const lastVal = lastEntry.value || 0;
+      // Nur letzter Wert pro Pollenart
+      const lastValues = measurements
+        .filter(m => m.data && m.data.length > 0)
+        .map(m => ({
+          polle: m.polle,
+          value: m.data[m.data.length - 1].value || 0
+        }));
 
-        const symbol = getColorSymbol(lastVal);
+      // Nach Wert absteigend sortieren
+      lastValues.sort((a, b) => b.value - a.value);
+
+      lastValues.forEach(m => {
+        const symbol = getColorSymbol(m.value);
         const li = document.createElement("li");
-        li.textContent = `${symbol} ${pollenNames[m.polle] || m.polle} (${m.polle}): ${lastVal.toFixed(1)}`;
+        li.textContent = `${symbol} ${pollenNames[m.polle] || m.polle} (${m.polle}): ${m.value.toFixed(1)}`;
         list.appendChild(li);
       });
     }
@@ -149,7 +155,7 @@
       if(markerObj){
         markerObj.marker.openPopup();
         map.setView(markerObj.marker.getLatLng(), 12);
-        loadMeasurements(locationId); // Ampelliste oben aktualisieren
+        loadMeasurements(locationId); 
       }
     }
 
