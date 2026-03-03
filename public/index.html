@@ -1,97 +1,124 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Pollen App</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <title>Pollen Map Ampel</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <style>
-    #map { height: 300px; margin-bottom: 20px; }
-    .pollen-list li { margin: 4px 0; }
+    body { font-family: Arial, sans-serif; margin: 10px; }
+    h1 { margin-bottom: 10px; }
+    #legend { margin-bottom: 20px; }
+    #map { height: 500px; width: 100%; margin-top: 20px; }
+    ul { list-style: none; padding: 0; }
+    li { margin: 2px 0; font-size: 14px; }
+    .legend-item { display: inline-block; margin-right: 10px; font-size: 14px; }
   </style>
 </head>
 <body>
-  <h1>🌿 Meine Pollen App</h1>
+  <h1>🌿 Pollen Ampel Übersicht & Map</h1>
 
-  <!-- Standort auswählen -->
-  <select id="locationSelect" onchange="loadMeasurements7Days(this.value)"></select>
+  <!-- Legende -->
+  <div id="legend">
+    <span class="legend-item">🟢 0–10 Sehr niedrig</span>
+    <span class="legend-item">🟡 11–50 Niedrig</span>
+    <span class="legend-item">🟠 51–200 Mittel</span>
+    <span class="legend-item">🔴 201–500 Hoch</span>
+    <span class="legend-item">🛑 >500 Sehr hoch</span>
+  </div>
 
-  <!-- Karte -->
+  <!-- Standortauswahl (oben für schnelle Übersicht) -->
+  <select id="locationSelect" onchange="highlightLocation(this.value)"></select>
+
+  <!-- Map -->
   <div id="map"></div>
 
-  <!-- Balkendiagramm -->
-  <canvas id="pollenChart" width="600" height="300"></canvas>
-
-  <!-- Pollenliste mit Ampel -->
-  <ul id="pollenList" class="pollen-list"></ul>
-
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
-    let locations = [];
-    let chart;
+    let map = L.map('map').setView([48.5, 11.5], 7); // mittig auf Bayern
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
 
-    // Mapping Latein → Deutsch
+    let locations = [];
+    let markers = [];
+
     const pollenNames = {
-      "Abies": "Tanne",
-  "Acer": "Ahorn",
-  "Aesculus": "Rosskastanie",
-  "Alnus": "Erle",
-  "Ambrosia": "Ambrosie",
-  "Artemisia": "Beifuß",
-  "Asteraceae": "Korbblütler",
-  "Betula": "Birke",
-  "Carpinus": "Hainbuche",
-  "Castanea": "Kastanie",
-  "Chenopodium": "Gänsefußgewächse",
-  "Corylus": "Hasel",
-  "Cruciferae": "Kreuzblütler",
-  "Cyperaceae": "Sauergrasgewächse",
-  "Erica": "Heidekraut",
-  "Fagus": "Buche",
-  "Fraxinus": "Esche",
-  "Fungus": "Pilze",
-  "Galium": "Labkraut",
-  "Humulus": "Hopfen",
-  "Impatiens": "Springkraut",
-  "Juglans": "Walnuss",
-  "Larix": "Lärche",
-  "Picea": "Fichte",
-  "Pinaceae": "Kieferngewächse",
-  "Pinus": "Kiefer",
-  "Plantago": "Wegerich",
-  "Platanus": "Platane",
-  "Poaceae": "Süßgräser",
-  "Populus": "Pappel",
-  "Quercus": "Eiche",
-  "Quercus ilex": "Steineiche",
-  "Rumex": "Ampfer",
-  "Salix": "Weide",
-  "Sambucus": "Holunder",
-  "Secale": "Roggen",
-  "Taxus": "Eibe",
-  "Tilia": "Linde",
-  "Ulmus": "Ulme",
-  "Urtica": "Brennnessel",
-  "Varia": "Verschiedenes"
-      // weitere Pollenarten ergänzen
+      "Abies": "Tanne","Acer": "Ahorn","Aesculus": "Rosskastanie",
+      "Alnus": "Erle","Ambrosia": "Ambrosie","Artemisia": "Beifuß",
+      "Asteraceae": "Korbblütler","Betula": "Birke","Carpinus": "Hainbuche",
+      "Castanea": "Kastanie","Chenopodium": "Gänsefußgewächse","Corylus": "Hasel",
+      "Cruciferae": "Kreuzblütler","Cyperaceae": "Sauergrasgewächse","Erica": "Heidekraut",
+      "Fagus": "Buche","Fraxinus": "Esche","Fungus": "Pilze","Galium": "Labkraut",
+      "Humulus": "Hopfen","Impatiens": "Springkraut","Juglans": "Walnuss",
+      "Larix": "Lärche","Picea": "Fichte","Pinaceae": "Kieferngewächse",
+      "Pinus": "Kiefer","Plantago": "Wegerich","Platanus": "Platane",
+      "Poaceae": "Süßgräser","Populus": "Pappel","Quercus": "Eiche",
+      "Quercus ilex": "Steineiche","Rumex": "Ampfer","Salix": "Weide",
+      "Sambucus": "Holunder","Secale": "Roggen","Taxus": "Eibe",
+      "Tilia": "Linde","Ulmus": "Ulme","Urtica": "Brennnessel",
+      "Varia": "Verschiedenes"
     };
+
+    function getColorSymbol(value) {
+      if(value <= 10) return '🟢';
+      if(value <= 50) return '🟡';
+      if(value <= 200) return '🟠';
+      if(value <= 500) return '🔴';
+      return '🛑';
+    }
+
+    function getMarkerColor(value) {
+      // einfacher Farbcode für Marker, ähnlich Emoji
+      if(value <= 10) return 'green';
+      if(value <= 50) return 'yellow';
+      if(value <= 200) return 'orange';
+      if(value <= 500) return 'red';
+      return 'darkred';
+    }
 
     async function initApp() {
       await loadLocations();
-      await loadPollen();
-      initMap();
-      if (locations.length) loadMeasurements7Days(locations[0].id);
-      if(Notification.permission !== "granted") Notification.requestPermission();
-    }
-
-    async function loadPollen() {
-      const res = await fetch("/api/pollen");
-      const data = await res.json();
-      // optional: Filter-Dropdown vorbereiten
+      await loadAllMeasurements();
+      populateSelect();
     }
 
     async function loadLocations() {
       const res = await fetch("/api/locations");
       locations = await res.json();
+    }
+
+    async function loadAllMeasurements() {
+      for(const loc of locations){
+        const res = await fetch(`/api/measurements?locations=${loc.id}`);
+        const measurements = await res.json();
+
+        // maximaler Wert für Markerfarbe
+        let maxVal = 0;
+        measurements.forEach(m => {
+          const lastVal = m.data[m.data.length - 1]?.value || 0;
+          if(lastVal > maxVal) maxVal = lastVal;
+        });
+
+        // HTML für Popup
+        let popupHtml = `<b>${loc.name}</b><br><ul>`;
+        measurements.forEach(m => {
+          const lastVal = m.data[m.data.length - 1]?.value || 0;
+          const symbol = getColorSymbol(lastVal);
+          popupHtml += `<li>${symbol} ${pollenNames[m.polle] || m.polle} (${m.polle}): ${lastVal.toFixed(1)}</li>`;
+        });
+        popupHtml += '</ul>';
+
+        const marker = L.circleMarker([loc.lat, loc.lon], {
+          radius: 8,
+          color: getMarkerColor(maxVal),
+          fillColor: getMarkerColor(maxVal),
+          fillOpacity: 0.8
+        }).addTo(map).bindPopup(popupHtml);
+
+        markers.push({ id: loc.id, marker });
+      }
+    }
+
+    function populateSelect() {
       const select = document.getElementById("locationSelect");
       select.innerHTML = "";
       locations.forEach(l => {
@@ -102,71 +129,15 @@
       });
     }
 
-    function initMap() {
-      const map = L.map('map').setView([48.23, 11.2], 8);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-      locations.forEach(l => {
-        const marker = L.marker([l.lat, l.lon]).addTo(map);
-        marker.bindPopup(`<b>${l.name}</b>`).on('click', () => loadMeasurements7Days(l.id));
-      });
-    }
-
-    function getColor(value) {
-      if(value<=10) return 'green';
-      if(value<=30) return 'lightgreen';
-      if(value<=60) return 'yellow';
-      if(value<=90) return 'orange';
-      return 'red';
-    }
-
-    async function loadMeasurements7Days(locationId) {
-      const res = await fetch(`/api/measurements?locations=${locationId}`);
-      const measurements = await res.json();
-
-      const labels = [];
-      const datasetsMap = {};
-
-      measurements.forEach(m => {
-        if(!datasetsMap[m.polle]) datasetsMap[m.polle] = [];
-        m.data.forEach(d => {
-          const date = new Date(d.from*1000).toLocaleDateString();
-          if(!labels.includes(date)) labels.push(date);
-          datasetsMap[m.polle].push(d.value);
-
-          if(d.value>90 && Notification.permission === "granted") {
-            new Notification(`${pollenNames[m.polle] || m.polle} in ${locationId} hoch!`, { body: `Wert: ${d.value}` });
-          }
-        });
-      });
-
-      const datasets = Object.keys(datasetsMap).map(polle => ({
-        label: pollenNames[polle] ? `${pollenNames[polle]} (${polle})` : polle,
-        data: datasetsMap[polle],
-        backgroundColor: datasetsMap[polle].map(v => getColor(v))
-      }));
-
-      const ctx = document.getElementById("pollenChart").getContext("2d");
-      if(chart) chart.destroy();
-      chart = new Chart(ctx, {
-        type: "bar",
-        data: { labels, datasets },
-        options: { responsive: true, plugins: { legend: { position: 'top' } } }
-      });
-
-      // Pollenliste Ampel
-      const list = document.getElementById("pollenList");
-      list.innerHTML = "";
-      Object.keys(datasetsMap).forEach(polle => {
-        const li = document.createElement("li");
-        const lastValue = datasetsMap[polle][datasetsMap[polle].length-1];
-        li.textContent = `${pollenNames[polle] || polle} (${polle}): ${lastValue}`;
-        li.style.color = getColor(lastValue);
-        list.appendChild(li);
-      });
+    function highlightLocation(locationId){
+      const markerObj = markers.find(m => m.id === locationId);
+      if(markerObj){
+        markerObj.marker.openPopup();
+        map.setView(markerObj.marker.getLatLng(), 12);
+      }
     }
 
     initApp();
   </script>
 </body>
 </html>
-
