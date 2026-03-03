@@ -29,6 +29,19 @@
     let locations = [];
     let chart;
 
+    // Mapping Latein → Deutsch
+    const pollenNames = {
+      "Betula": "Birke",
+      "Alnus": "Erle",
+      "Ambrosia": "Ambrosie",
+      "Acer": "Ahorn",
+      "Abies": "Tanne",
+      "Aesculus": "Rosskastanie",
+      "Artemisia": "Beifuß",
+      "Acer": "Ahorn"
+      // weitere Pollenarten ergänzen
+    };
+
     async function initApp() {
       await loadLocations();
       await loadPollen();
@@ -40,15 +53,7 @@
     async function loadPollen() {
       const res = await fetch("/api/pollen");
       const data = await res.json();
-      const filter = document.getElementById("pollenFilter");
-      if(filter) {
-        data.forEach(p => {
-          const opt = document.createElement("option");
-          opt.value = p;
-          opt.textContent = p;
-          filter.appendChild(opt);
-        });
-      }
+      // optional: Filter-Dropdown vorbereiten
     }
 
     async function loadLocations() {
@@ -96,13 +101,13 @@
           datasetsMap[m.polle].push(d.value);
 
           if(d.value>90 && Notification.permission === "granted") {
-            new Notification(`${m.polle} in ${locationId} hoch!`, { body: `Wert: ${d.value}` });
+            new Notification(`${pollenNames[m.polle] || m.polle} in ${locationId} hoch!`, { body: `Wert: ${d.value}` });
           }
         });
       });
 
       const datasets = Object.keys(datasetsMap).map(polle => ({
-        label: polle,
+        label: pollenNames[polle] ? `${pollenNames[polle]} (${polle})` : polle,
         data: datasetsMap[polle],
         backgroundColor: datasetsMap[polle].map(v => getColor(v))
       }));
@@ -121,7 +126,7 @@
       Object.keys(datasetsMap).forEach(polle => {
         const li = document.createElement("li");
         const lastValue = datasetsMap[polle][datasetsMap[polle].length-1];
-        li.textContent = `${polle}: ${lastValue}`;
+        li.textContent = `${pollenNames[polle] || polle} (${polle}): ${lastValue}`;
         li.style.color = getColor(lastValue);
         list.appendChild(li);
       });
