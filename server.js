@@ -12,17 +12,6 @@ app.get("/api/test", (req, res) => {
   res.json({ message: "Backend läuft 🌿" });
 });
 
-// Pollendaten
-app.get("/api/pollen", async (req, res) => {
-  try {
-    const response = await axios.get("https://epin.lgl.bayern.de/api/pollen");
-    res.json(response.data);
-  } catch (error) {
-    console.error(error.response ? error.response.data : error.message);
-    res.status(500).json({ error: "Fehler beim Laden der Pollendaten" });
-  }
-});
-
 // Standorte
 app.get("/api/locations", async (req, res) => {
   try {
@@ -34,20 +23,34 @@ app.get("/api/locations", async (req, res) => {
   }
 });
 
-// Messwerte letzte 7 Tage
+// Messwerte letzte 7 Tage für ausgewählten Standort, aktuellster Wert pro Pollenart
 app.get("/api/measurements", async (req, res) => {
   try {
+    const locationId = req.query.location;
+    if (!locationId) return res.status(400).json({ error: "location query missing" });
+
     const now = Math.floor(Date.now() / 1000);
     const sevenDaysAgo = now - 7 * 24 * 60 * 60;
 
     const response = await axios.get("https://epin.lgl.bayern.de/api/measurements", {
       params: {
         from: sevenDaysAgo,
-        to: now
+        to: now,
+        location: locationId
       }
     });
 
-    res.json(response.data.measurements);
+    const measurements = response.data.measurements;
+
+    // Gruppieren nach Pollenart und nur den aktuellsten Wert behalten
+    const latestPerPollen = {};
+    measurements.forEach(m => {
+      if (!latestPerPollen[m.pollen] || new Date(m.timestamp) > new Date(latestPerPollen[m.pollen].timestamp)) {
+        latestPerPollen[m.pollen] = m;
+      }
+    });
+
+    res.json(Object.values(latestPerPollen));
   } catch (error) {
     console.error(error.response ? error.response.data : error.message);
     res.status(500).json({ error: "Fehler beim Laden der Messwerte" });
