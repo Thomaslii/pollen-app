@@ -1,79 +1,59 @@
 const express = require("express");
 const axios = require("axios");
 const cors = require("cors");
-
 const app = express();
 app.use(cors());
-app.use(express.static("public"));
+app.use(express.static("public")); // Frontend-Dateien
 
 const PORT = process.env.PORT || 3000;
 
-// ⚠️ Für lokale Entwicklung bei Firmen-PCs / Proxy
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+// Testroute
+app.get("/api/test", (req, res) => {
+  res.json({ message: "Backend läuft 🌿" });
+});
 
-// Pollenarten von ePIN
+// Pollendaten
 app.get("/api/pollen", async (req, res) => {
   try {
     const response = await axios.get("https://epin.lgl.bayern.de/api/pollen");
-    res.json(response.data); // Array ["Abies","Acer",...]
+    res.json(response.data);
   } catch (error) {
-    console.error(error.message);
-    // Fallback auf Beispiel-Daten
-    res.json(["Betula", "Alnus", "Ambrosia", "Acer"]);
+    console.error(error.response ? error.response.data : error.message);
+    res.status(500).json({ error: "Fehler beim Laden der Pollendaten" });
   }
 });
 
-// Standorte von ePIN
+// Standorte
 app.get("/api/locations", async (req, res) => {
   try {
     const response = await axios.get("https://epin.lgl.bayern.de/api/locations");
-    const locations = response.data.map(l => ({ id: l.id, name: l.name }));
-    res.json(locations);
+    res.json(response.data);
   } catch (error) {
-    console.error(error.message);
-    // Fallback auf Beispiel-Standorte
-    res.json([
-      { id: "DEALTO", name: "Altötting" },
-      { id: "DEFEUC", name: "Feucht" },
-      { id: "DEBIED", name: "Biedersteiner Straße" }
-    ]);
+    console.error(error.response ? error.response.data : error.message);
+    res.status(500).json({ error: "Fehler beim Laden der Standorte" });
   }
 });
 
-// Messwerte von ePIN (letzte 24h)
+// Messwerte letzte 7 Tage
 app.get("/api/measurements", async (req, res) => {
   try {
-    const to = Math.floor(Date.now() / 1000);
-    const from = to - 24 * 60 * 60;
-    const response = await axios.get(`https://epin.lgl.bayern.de/api/measurements?from=${from}&to=${to}`);
+    const now = Math.floor(Date.now() / 1000);
+    const sevenDaysAgo = now - 7 * 24 * 60 * 60;
 
-    const measurements = [];
-    response.data.measurements.forEach(m => {
-      if (m.data && m.data.length > 0) {
-        const last = m.data[m.data.length - 1];
-        measurements.push({
-          location: m.location,
-          pollen: m.polle,
-          value: last.value
-        });
+    const response = await axios.get("https://epin.lgl.bayern.de/api/measurements", {
+      params: {
+        from: sevenDaysAgo,
+        to: now
       }
     });
 
-    res.json(measurements);
+    res.json(response.data.measurements);
   } catch (error) {
-    console.error(error.message);
-    // Fallback auf Beispiel-Messwerte
-    res.json([
-      { location: "DEALTO", pollen: "Betula", value: 12 },
-      { location: "DEALTO", pollen: "Alnus", value: 5 },
-      { location: "DEFEUC", pollen: "Ambrosia", value: 30 },
-      { location: "DEBIED", pollen: "Acer", value: 2 }
-    ]);
+    console.error(error.response ? error.response.data : error.message);
+    res.status(500).json({ error: "Fehler beim Laden der Messwerte" });
   }
 });
 
-// Server starten
 app.listen(PORT, () => {
   console.log(`Server läuft auf http://localhost:${PORT}`);
-
 });
