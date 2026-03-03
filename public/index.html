@@ -105,9 +105,9 @@
         pollenMap[m.polle].push(...m.data);
       });
 
-      // Für jede Pollenart sortieren nach Wert absteigend
+      // Für jede Pollenart sortieren nach timestamp absteigend (aktuellster zuerst)
       Object.entries(pollenMap).forEach(([polle, dataArray]) => {
-        const sorted = dataArray.sort((a, b) => b.value - a.value);
+        const sorted = dataArray.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
         sorted.forEach(d => {
           const symbol = getColorSymbol(d.value);
           const dateStr = new Date(d.timestamp).toLocaleString();
