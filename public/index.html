@@ -1,121 +1,133 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Pollen Dashboard Pro</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pollen App</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <style>
-    body { font-family: sans-serif; margin: 10px; }
-    select, button { padding: 5px 10px; margin: 5px 0; }
-    table { border-collapse: collapse; margin-top: 10px; width: 100%; max-width: 600px; }
-    th, td { border: 1px solid #ccc; padding: 5px 10px; text-align: center; }
-    .green { background-color: #4CAF50; color: white; }
-    .yellow { background-color: #FFEB3B; }
-    .red { background-color: #F44336; color: white; }
-    canvas { margin-top: 20px; max-width: 100%; height: auto; }
-    @media (max-width: 600px) {
-      table, canvas { width: 100%; }
-    }
+    #map { height: 300px; margin-bottom: 20px; }
+    .pollen-list li { margin: 4px 0; }
   </style>
 </head>
 <body>
-  <h1>🌿 Pollen Dashboard Pro</h1>
+  <h1>🌿 Meine Pollen App</h1>
 
-  <label for="locationSelect">Standort auswählen:</label>
-  <select id="locationSelect"></select>
-  <button onclick="loadMeasurementsByLocation()">Anzeigen</button>
+  <!-- Standort auswählen -->
+  <select id="locationSelect" onchange="loadMeasurements7Days(this.value)"></select>
 
-  <table id="measurementTable">
-    <tr>
-      <th>Pollen</th>
-      <th>Wert (Pollen/m³)</th>
-      <th>Ampel</th>
-    </tr>
-  </table>
+  <!-- Karte -->
+  <div id="map"></div>
 
-  <h2>Balkendiagramm (letzte 7 Tage)</h2>
+  <!-- Balkendiagramm -->
   <canvas id="pollenChart" width="600" height="300"></canvas>
 
+  <!-- Pollenliste mit Ampel -->
+  <ul id="pollenList" class="pollen-list"></ul>
+
   <script>
-    let pollenChart;
-    let favoriteLocation = localStorage.getItem("favoriteLocation") || null;
+    let locations = [];
+    let chart;
+
+    async function initApp() {
+      await loadLocations();
+      await loadPollen();
+      initMap();
+      if (locations.length) loadMeasurements7Days(locations[0].id);
+      if(Notification.permission !== "granted") Notification.requestPermission();
+    }
+
+    async function loadPollen() {
+      const res = await fetch("/api/pollen");
+      const data = await res.json();
+      const filter = document.getElementById("pollenFilter");
+      if(filter) {
+        data.forEach(p => {
+          const opt = document.createElement("option");
+          opt.value = p;
+          opt.textContent = p;
+          filter.appendChild(opt);
+        });
+      }
+    }
 
     async function loadLocations() {
       const res = await fetch("/api/locations");
-      const data = await res.json();
+      locations = await res.json();
       const select = document.getElementById("locationSelect");
-      select.innerHTML = ""; // vorher löschen
-      data.forEach(loc => {
-        const option = document.createElement("option");
-        option.value = loc.id;
-        option.textContent = loc.name;
-        if (favoriteLocation === loc.id) option.selected = true;
-        select.appendChild(option);
+      select.innerHTML = "";
+      locations.forEach(l => {
+        const opt = document.createElement("option");
+        opt.value = l.id;
+        opt.textContent = l.name;
+        select.appendChild(opt);
       });
-      if (!favoriteLocation && data.length > 0) favoriteLocation = data[0].id;
     }
 
-    async function loadMeasurementsByLocation() {
-      const locationId = document.getElementById("locationSelect").value;
-      localStorage.setItem("favoriteLocation", locationId);
+    function initMap() {
+      const map = L.map('map').setView([48.23, 11.2], 8);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+      locations.forEach(l => {
+        const marker = L.marker([l.lat, l.lon]).addTo(map);
+        marker.bindPopup(`<b>${l.name}</b>`).on('click', () => loadMeasurements7Days(l.id));
+      });
+    }
 
-      const res = await fetch("/api/measurements");
-      const data = await res.json();
+    function getColor(value) {
+      if(value<=10) return 'green';
+      if(value<=30) return 'lightgreen';
+      if(value<=60) return 'yellow';
+      if(value<=90) return 'orange';
+      return 'red';
+    }
 
-      const filtered = data.filter(m => m.location === locationId);
-
-      // Tabelle zurücksetzen
-      const table = document.getElementById("measurementTable");
-      table.innerHTML = `
-        <tr>
-          <th>Pollen</th>
-          <th>Wert (Pollen/m³)</th>
-          <th>Ampel</th>
-        </tr>
-      `;
+    async function loadMeasurements7Days(locationId) {
+      const res = await fetch(`/api/measurements?locations=${locationId}`);
+      const measurements = await res.json();
 
       const labels = [];
-      const values = [];
-      const colors = [];
+      const datasetsMap = {};
 
-      filtered.forEach(m => {
-        let colorClass = "green";
-        let color = "#4CAF50";
-        if (m.value > 20) { colorClass = "red"; color = "#F44336"; }
-        else if (m.value > 10) { colorClass = "yellow"; color = "#FFEB3B"; }
+      measurements.forEach(m => {
+        if(!datasetsMap[m.polle]) datasetsMap[m.polle] = [];
+        m.data.forEach(d => {
+          const date = new Date(d.from*1000).toLocaleDateString();
+          if(!labels.includes(date)) labels.push(date);
+          datasetsMap[m.polle].push(d.value);
 
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td>${m.pollen}</td>
-          <td>${m.value}</td>
-          <td class="${colorClass}">&nbsp;&nbsp;&nbsp;</td>
-        `;
-        table.appendChild(tr);
-
-        labels.push(m.pollen);
-        values.push(m.value);
-        colors.push(color);
+          if(d.value>90 && Notification.permission === "granted") {
+            new Notification(`${m.polle} in ${locationId} hoch!`, { body: `Wert: ${d.value}` });
+          }
+        });
       });
 
-      const ctx = document.getElementById("pollenChart").getContext("2d");
-      if (pollenChart) pollenChart.destroy();
+      const datasets = Object.keys(datasetsMap).map(polle => ({
+        label: polle,
+        data: datasetsMap[polle],
+        backgroundColor: datasetsMap[polle].map(v => getColor(v))
+      }));
 
-      pollenChart = new Chart(ctx, {
-        type: 'bar',
-        data: { labels, datasets: [{ label: 'Pollenkonzentration', data: values, backgroundColor: colors }] },
-        options: {
-          responsive: true,
-          plugins: { tooltip: { enabled: true } },
-          scales: { y: { beginAtZero: true, title: { display: true, text: 'Pollen pro m³' } } }
-        }
+      const ctx = document.getElementById("pollenChart").getContext("2d");
+      if(chart) chart.destroy();
+      chart = new Chart(ctx, {
+        type: "bar",
+        data: { labels, datasets },
+        options: { responsive: true, plugins: { legend: { position: 'top' } } }
+      });
+
+      // Pollenliste Ampel
+      const list = document.getElementById("pollenList");
+      list.innerHTML = "";
+      Object.keys(datasetsMap).forEach(polle => {
+        const li = document.createElement("li");
+        const lastValue = datasetsMap[polle][datasetsMap[polle].length-1];
+        li.textContent = `${polle}: ${lastValue}`;
+        li.style.color = getColor(lastValue);
+        list.appendChild(li);
       });
     }
 
-    // Auto-Refresh alle 10 Minuten
-    setInterval(() => loadMeasurementsByLocation(), 10 * 60 * 1000);
-
-    // initial laden
-    loadLocations().then(loadMeasurementsByLocation);
+    initApp();
   </script>
 </body>
 </html>
