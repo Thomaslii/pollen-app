@@ -6,7 +6,7 @@ const app = express();
 app.use(cors());
 app.use(express.static("public"));
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 // ⚠️ Für lokale Entwicklung bei Firmen-PCs / Proxy
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
@@ -75,4 +75,5 @@ app.get("/api/measurements", async (req, res) => {
 // Server starten
 app.listen(PORT, () => {
   console.log(`Server läuft auf http://localhost:${PORT}`);
+
 });
