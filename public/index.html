@@ -1,13 +1,14 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Pollen Map Ampel</title>
+  <title>Pollen App Übersicht & Map</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
     body { font-family: Arial, sans-serif; margin: 10px; }
     h1 { margin-bottom: 10px; }
-    #legend { margin-bottom: 20px; }
+    #legend { margin-bottom: 10px; }
     #map { height: 500px; width: 100%; margin-top: 20px; }
+    select { margin-bottom: 10px; padding: 5px; font-size: 16px; }
     ul { list-style: none; padding: 0; }
     li { margin: 2px 0; font-size: 14px; }
     .legend-item { display: inline-block; margin-right: 10px; font-size: 14px; }
@@ -25,10 +26,13 @@
     <span class="legend-item">🛑 >500 Sehr hoch</span>
   </div>
 
-  <!-- Standortauswahl (oben für schnelle Übersicht) -->
+  <!-- Standortauswahl -->
   <select id="locationSelect" onchange="highlightLocation(this.value)"></select>
 
-  <!-- Map -->
+  <!-- Ampelliste -->
+  <ul id="pollenList"></ul>
+
+  <!-- Karte -->
   <div id="map"></div>
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -67,7 +71,6 @@
     }
 
     function getMarkerColor(value) {
-      // einfacher Farbcode für Marker, ähnlich Emoji
       if(value <= 10) return 'green';
       if(value <= 50) return 'yellow';
       if(value <= 200) return 'orange';
@@ -77,45 +80,14 @@
 
     async function initApp() {
       await loadLocations();
-      await loadAllMeasurements();
       populateSelect();
+      await loadMeasurements(locations[0].id); // initialer Standort
+      await loadMarkers();
     }
 
     async function loadLocations() {
       const res = await fetch("/api/locations");
       locations = await res.json();
-    }
-
-    async function loadAllMeasurements() {
-      for(const loc of locations){
-        const res = await fetch(`/api/measurements?locations=${loc.id}`);
-        const measurements = await res.json();
-
-        // maximaler Wert für Markerfarbe
-        let maxVal = 0;
-        measurements.forEach(m => {
-          const lastVal = m.data[m.data.length - 1]?.value || 0;
-          if(lastVal > maxVal) maxVal = lastVal;
-        });
-
-        // HTML für Popup
-        let popupHtml = `<b>${loc.name}</b><br><ul>`;
-        measurements.forEach(m => {
-          const lastVal = m.data[m.data.length - 1]?.value || 0;
-          const symbol = getColorSymbol(lastVal);
-          popupHtml += `<li>${symbol} ${pollenNames[m.polle] || m.polle} (${m.polle}): ${lastVal.toFixed(1)}</li>`;
-        });
-        popupHtml += '</ul>';
-
-        const marker = L.circleMarker([loc.lat, loc.lon], {
-          radius: 8,
-          color: getMarkerColor(maxVal),
-          fillColor: getMarkerColor(maxVal),
-          fillOpacity: 0.8
-        }).addTo(map).bindPopup(popupHtml);
-
-        markers.push({ id: loc.id, marker });
-      }
     }
 
     function populateSelect() {
@@ -129,11 +101,49 @@
       });
     }
 
+    async function loadMeasurements(locationId) {
+      const res = await fetch(`/api/measurements?locations=${locationId}`);
+      const measurements = await res.json();
+
+      const list = document.getElementById("pollenList");
+      list.innerHTML = "";
+      measurements.forEach(m => {
+        const lastVal = m.data[m.data.length - 1]?.value || 0;
+        const symbol = getColorSymbol(lastVal);
+        const li = document.createElement("li");
+        li.textContent = `${symbol} ${pollenNames[m.polle] || m.polle} (${m.polle}): ${lastVal.toFixed(1)}`;
+        list.appendChild(li);
+      });
+    }
+
+    async function loadMarkers() {
+      for(const loc of locations){
+        const res = await fetch(`/api/measurements?locations=${loc.id}`);
+        const measurements = await res.json();
+
+        let maxVal = 0;
+        measurements.forEach(m => {
+          const lastVal = m.data[m.data.length - 1]?.value || 0;
+          if(lastVal > maxVal) maxVal = lastVal;
+        });
+
+        const marker = L.circleMarker([loc.lat, loc.lon], {
+          radius: 8,
+          color: getMarkerColor(maxVal),
+          fillColor: getMarkerColor(maxVal),
+          fillOpacity: 0.8
+        }).addTo(map).bindPopup(`<b>${loc.name}</b><br>Max Wert: ${maxVal.toFixed(1)}`);
+
+        markers.push({ id: loc.id, marker });
+      }
+    }
+
     function highlightLocation(locationId){
       const markerObj = markers.find(m => m.id === locationId);
       if(markerObj){
         markerObj.marker.openPopup();
         map.setView(markerObj.marker.getLatLng(), 12);
+        loadMeasurements(locationId); // Ampelliste oben aktualisieren
       }
     }
 
